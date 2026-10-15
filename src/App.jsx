@@ -54,7 +54,7 @@ const App = () => {
     setStudents((prev) => prev.filter((item) => item.id !== id));
   };
 
-  // Hàm này dùng để lọc danh sách trên 8 và dưới 5
+  // Hàm này em dùng để lọc danh sách trên 8 và dưới 5
   const filteredStudents = students.filter((item) => {
     if (filterType === 'GIOI') return item.score >= 8;
     if (filterType === 'TRUOT') return item.score < 5;
@@ -123,13 +123,13 @@ const App = () => {
         </div>
       </form>
 
-      {/* Thống kê */}
+      {/* Chỗ này em Thống kê */}
       <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', background: '#e6f7ff', borderRadius: '4px', marginBottom: '16px' }}>
         <span><strong>{`Tổng số sinh viên: ${totalStudents}`}</strong></span>
         <span><strong>{`Điểm trung bình toàn lớp: ${averageScore}`}</strong></span>
       </div>
 
-      {/* Bộ lọc Filter */}
+      {/* Em áp dụng Filter như yêu cầu */}
       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
         <span><strong>Bộ lọc:</strong></span>
         <button
