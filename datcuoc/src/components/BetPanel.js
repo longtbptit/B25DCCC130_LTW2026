@@ -1,7 +1,7 @@
 import { LEVELS, MULTIPLIERS, formatScore, formatMultiplier } from '../data';
 import { validateBet } from '../utils';
 
-const BetPanel = ({ index, total, question, score, bet, setBet, onConfirm }) => {
+const BetPanel = ({ index, total, question, score, bet, setBet, onConfirm, previewText }) => {
   const errorMsg = validateBet(bet, score);
 
   return (
@@ -12,6 +12,12 @@ const BetPanel = ({ index, total, question, score, bet, setBet, onConfirm }) => 
       <p style={{ fontSize: '18px', fontWeight: 'bold' }}>
         {`Điểm hiện có: ${formatScore(score)}`}
       </p>
+
+      {previewText && (
+        <p style={{ padding: '10px', backgroundColor: '#fff8e1', border: '1px dashed #fbc02d', fontWeight: 'bold' }}>
+          {`Xem trước: ${previewText}`}
+        </p>
+      )}
 
       <div style={{ margin: '16px 0' }}>
         <label style={{ fontWeight: 'bold', marginRight: '10px' }}>Mức cược:</label>

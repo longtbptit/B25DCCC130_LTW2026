@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
+import { formatScore } from '../data';
 
-const Home = ({ playerName, setPlayerName }) => {
+const Home = ({ playerName, setPlayerName, history }) => {
   const navigate = useNavigate();
 
   const handleStart = (e) => {
@@ -10,12 +11,24 @@ const Home = ({ playerName, setPlayerName }) => {
     }
   };
 
+  // Em bổ sung đoạn này để tìm kỉ lục cao nhất
+  const topRecord =
+    history.length > 0
+      ? history.reduce((best, cur) => (cur.finalScore > best.finalScore ? cur : best), history[0])
+      : null;
+
   return (
     <div>
       <h2>Đặt cược kiến thức</h2>
       <p>
         Bạn bắt đầu với 1.000 điểm và vượt qua 12 câu hỏi. Trước mỗi câu hãy đặt cược từ 100 đến 500 điểm. Trả lời đúng được thưởng theo hệ số độ khó, sai hoặc hết giờ (25s) sẽ mất tiền cược. Dưới 100 điểm sẽ cháy túi!
       </p>
+
+      {topRecord && (
+        <p style={{ fontWeight: 'bold', color: '#1b5e20', fontSize: '16px', marginTop: '12px' }}>
+          {`Kỷ lục: ${formatScore(topRecord.finalScore)} – ${topRecord.name}`}
+        </p>
+      )}
 
       <form onSubmit={handleStart} style={{ marginTop: '20px' }}>
         <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>

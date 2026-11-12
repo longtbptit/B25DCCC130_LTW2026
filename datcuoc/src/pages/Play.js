@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { START_SCORE, MIN_BET, TIME_PER_QUESTION, formatScore } from '../data';
-import { calcChange } from '../utils';
+import { START_SCORE, MIN_BET, MAX_BET, BET_STEP, TIME_PER_QUESTION, formatScore } from '../data';
+import { calcChange, validateBet, getResult } from '../utils';
 import BetPanel from '../components/BetPanel';
 import QuestionCard from '../components/QuestionCard';
 import Timer from '../components/Timer';
 import ScoreInfo from '../components/ScoreInfo';
+import Supports from '../components/Supports';
 
-const Play = ({ playerName, questions }) => {
+const Play = ({ playerName, questions, onAddHistory }) => {
   const navigate = useNavigate();
 
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -19,16 +20,36 @@ const Play = ({ playerName, questions }) => {
   const [lastChange, setLastChange] = useState(0);
   const [rounds, setRounds] = useState([]);
 
+  
+  const [usedSupports, setUsedSupports] = useState({
+    preview: false,
+    insurance: false,
+    hint: false,
+  });
+  const [showPreview, setShowPreview] = useState(false);
+  const [insuredCurrent, setInsuredCurrent] = useState(false);
+  const [showHint, setShowHint] = useState(false);
+  const [wasInsuredSaved, setWasInsuredSaved] = useState(false);
+
   const currentQuestion = questions[currentIndex];
 
   const handleEvaluate = (optionIndex) => {
     const betNum = Number(bet);
     const isCorrect = optionIndex === currentQuestion.answer;
-    const change = calcChange(betNum, currentQuestion.level, isCorrect);
+    let change = calcChange(betNum, currentQuestion.level, isCorrect);
+    let savedByInsurance = false;
+
+    // Nếu sai hoặc hết giờ mà đang bật bảo hiểm -> không bị trừ điểm
+    if (!isCorrect && insuredCurrent) {
+      change = 0;
+      savedByInsurance = true;
+    }
+
     const newScore = score + change;
 
     setSelectedOption(optionIndex);
     setLastChange(change);
+    setWasInsuredSaved(savedByInsurance);
     setScore(newScore);
     setRounds((prev) => [
       ...prev,
@@ -43,7 +64,7 @@ const Play = ({ playerName, questions }) => {
     setStatus('revealed');
   };
 
-  // Đồng hồ đếm ngược 25 giây khi đang trả lời
+  
   useEffect(() => {
     if (status !== 'answering') return;
 
@@ -51,7 +72,7 @@ const Play = ({ playerName, questions }) => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timerId);
-          handleEvaluate(null); // Hết giờ coi như trả lời sai
+          handleEvaluate(null);
           return 0;
         }
         return prev - 1;
@@ -62,7 +83,7 @@ const Play = ({ playerName, questions }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
-  // Chờ 2 giây sau khi lộ đáp án để chuyển câu hoặc kết thúc
+  
   useEffect(() => {
     if (status !== 'revealed') return;
 
@@ -70,6 +91,18 @@ const Play = ({ playerName, questions }) => {
       if (score < MIN_BET || currentIndex + 1 >= questions.length) {
         const correctCount = rounds.filter((r) => r.correct).length;
         const reason = score < MIN_BET ? 'Bạn đã cháy túi!' : 'Bạn đã hoàn thành 12 câu.';
+        const resultTitle = getResult(score);
+
+       
+        onAddHistory({
+          id: Date.now(),
+          name: playerName.trim(),
+          finalScore: score,
+          correctCount,
+          played: rounds.length,
+          result: resultTitle,
+          playedAt: new Date().toLocaleString('vi-VN'),
+        });
 
         navigate('/result', {
           replace: true,
@@ -85,12 +118,61 @@ const Play = ({ playerName, questions }) => {
         setCurrentIndex((prev) => prev + 1);
         setBet(MIN_BET);
         setSelectedOption(null);
+        setShowPreview(false);
+        setInsuredCurrent(false);
+        setShowHint(false);
+        setWasInsuredSaved(false);
         setStatus('betting');
       }
     }, 2000);
 
     return () => clearTimeout(timeoutId);
-  }, [status, score, currentIndex, questions.length, rounds, navigate, playerName]);
+  }, [status, score, currentIndex, questions.length, rounds, navigate, playerName, onAddHistory]);
+
+
+  useEffect(() => {
+    if (status !== 'betting') return;
+
+    const maxValidBet = Math.min(MAX_BET, Math.floor(score / BET_STEP) * BET_STEP);
+
+    const handleKey = (e) => {
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setBet((prev) => {
+          const next = Number(prev) + BET_STEP;
+          return next <= maxValidBet ? next : maxValidBet;
+        });
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setBet((prev) => {
+          const next = Number(prev) - BET_STEP;
+          return next >= MIN_BET ? next : MIN_BET;
+        });
+      } else if (e.key === 'Enter') {
+        if (!validateBet(bet, score)) {
+          setTimeLeft(TIME_PER_QUESTION);
+          setStatus('answering');
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [status, score, bet]);
+
+
+  useEffect(() => {
+    if (!currentQuestion) return;
+    if (status === 'betting') {
+      document.title = `Câu ${currentIndex + 1}/${questions.length} – đặt cược`;
+    } else {
+      document.title = `Câu ${currentIndex + 1}/${questions.length} – cược ${Number(bet)}`;
+    }
+
+    return () => {
+      document.title = 'Đặt cược kiến thức';
+    };
+  }, [status, currentIndex, questions.length, bet, currentQuestion]);
 
   if (!playerName || !playerName.trim()) {
     return <Navigate to="/" replace />;
@@ -105,6 +187,24 @@ const Play = ({ playerName, questions }) => {
 
   return (
     <div>
+      <Supports
+        status={status}
+        usedSupports={usedSupports}
+        insuredCurrent={insuredCurrent}
+        onUsePreview={() => {
+          setUsedSupports((prev) => ({ ...prev, preview: true }));
+          setShowPreview(true);
+        }}
+        onUseInsurance={() => {
+          setUsedSupports((prev) => ({ ...prev, insurance: true }));
+          setInsuredCurrent(true);
+        }}
+        onUseHint={() => {
+          setUsedSupports((prev) => ({ ...prev, hint: true }));
+          setShowHint(true);
+        }}
+      />
+
       {status === 'betting' ? (
         <BetPanel
           index={currentIndex}
@@ -114,6 +214,7 @@ const Play = ({ playerName, questions }) => {
           bet={bet}
           setBet={setBet}
           onConfirm={handleConfirmBet}
+          previewText={showPreview ? currentQuestion.question : ''}
         />
       ) : (
         <div style={{ border: '1px solid #ccc', padding: '20px', borderRadius: '8px' }}>
@@ -131,16 +232,24 @@ const Play = ({ playerName, questions }) => {
             onSelect={handleEvaluate}
           />
 
+          {showHint && (
+            <p style={{ marginTop: '14px', fontStyle: 'italic', color: '#0d47a1' }}>
+              {`Gợi ý: ${currentQuestion.hint}`}
+            </p>
+          )}
+
           {status === 'revealed' && (
             <p
               style={{
                 marginTop: '16px',
                 fontSize: '18px',
                 fontWeight: 'bold',
-                color: lastChange > 0 ? '#2e7d32' : '#c62828',
+                color: wasInsuredSaved ? '#e65100' : lastChange > 0 ? '#2e7d32' : '#c62828',
               }}
             >
-              {lastChange > 0
+              {wasInsuredSaved
+                ? 'Bảo hiểm: không bị trừ điểm'
+                : lastChange > 0
                 ? `+${formatScore(lastChange)}`
                 : `-${formatScore(Math.abs(lastChange))}`}
             </p>
